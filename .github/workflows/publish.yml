@@ -67,6 +67,10 @@ jobs:
           RSS_FEEDS=${{ secrets.RSS_FEEDS || 'https://news.google.com/rss,https://feeds.feedburner.com/blogspot/gJZg' }}
           MAX_ARTICLES_PER_RUN=${{ secrets.MAX_ARTICLES_PER_RUN || '1' }}
           CRON_SCHEDULE=${{ secrets.CRON_SCHEDULE || '0 8 * * 1,4' }}
+          # Image settings
+          IMAGE_ENABLED=${{ secrets.IMAGE_ENABLED || 'true' }}
+          IMAGE_PROVIDER=${{ secrets.IMAGE_PROVIDER || 'picsum' }}
+          PEXELS_API_KEY=${{ secrets.PEXELS_API_KEY }}
           EOF
           echo "Created .env file"
 

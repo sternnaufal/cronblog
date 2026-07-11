@@ -113,6 +113,34 @@ CRON_SCHEDULE: str = get_env_str("CRON_SCHEDULE", "0 8 * * 1,4")
 # --- Blog Settings ---
 MAX_ARTICLES_PER_RUN: int = get_env_int("MAX_ARTICLES_PER_RUN", 1)
 
+# --- Publish Mode ---
+# draft     = simpan sebagai draft (default) - review manual dulu
+# live      = publish langsung ke blog
+# scheduled = publish otomatis setelah PUBLISH_DELAY_HOURS jam
+PUBLISH_MODE: str = get_env_str("PUBLISH_MODE", "draft").lower()
+PUBLISH_DELAY_HOURS: int = get_env_int("PUBLISH_DELAY_HOURS", 0)
+
+# --- Image Settings ---
+# Set IMAGE_ENABLED=true to auto-add images to articles
+# Uses Picsum.photos by default (free, no key needed)
+# For better results, get a free Pexels API key at https://www.pexels.com/api/
+IMAGE_ENABLED: bool = get_env_str("IMAGE_ENABLED", "true").lower() == "true"
+IMAGE_PROVIDER: str = get_env_str("IMAGE_PROVIDER", "picsum")  # picsum or pexels
+IMAGE_WIDTH: int = get_env_int("IMAGE_WIDTH", 800)
+IMAGE_HEIGHT: int = get_env_int("IMAGE_HEIGHT", 400)
+PEXELS_API_KEY: str = get_env_str("PEXELS_API_KEY")
+
+# --- Social Share Settings ---
+# Telegram (easy, free): buat bot lewat @BotFather, dapatkan token & chat ID
+TELEGRAM_BOT_TOKEN: str = get_env_str("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID: str = get_env_str("TELEGRAM_CHAT_ID")
+
+# Twitter/X (butuh Twitter Developer Account + OAuth 1.0a)
+TWITTER_API_KEY: str = get_env_str("TWITTER_API_KEY")
+TWITTER_API_SECRET: str = get_env_str("TWITTER_API_SECRET")
+TWITTER_ACCESS_TOKEN: str = get_env_str("TWITTER_ACCESS_TOKEN")
+TWITTER_ACCESS_SECRET: str = get_env_str("TWITTER_ACCESS_SECRET")
+
 # --- Paths ---
 PROMPTS_DIR: Path = PROJECT_ROOT / "prompts"
 MASTER_PROMPT_PATH: Path = PROMPTS_DIR / "master_prompt.txt"
@@ -130,22 +158,24 @@ def load_master_prompt() -> str:
             return f.read().strip()
 
     # Fallback default prompt if file doesn't exist
-    return """Anda adalah seorang Content Writer profesional dan pakar SEO dengan pengalaman 10 tahun. Tugas Anda adalah menulis artikel blog yang mendalam, engaging, dan ramah SEO berdasarkan topik atau tren yang diberikan.
+    return """Anda adalah Naufal Rakha Putra, penulis blog "Penting Literasi". Blog fokus teknologi, komputer, OS, programming, hacking, game, sejarah teknologi.
 
-Ketentuan Penulisan:
-1. GAYA BAHASA: Santai namun informatif (semi-formal), mengalir secara natural seperti ditulis oleh manusia. Gunakan sudut pandang orang pertama jamak ("kita" atau "kami") untuk mendekatkan diri dengan pembaca.
-2. STRUKTUR: Wajib menggunakan format HTML bersih. Gunakan tag <h2> dan <h3> untuk sub-heading. Gunakan <ul>/<li> untuk daftar poin. JANGAN gunakan tag <html>, <body>, atau emoji berlebihan.
-3. PANJANG: Minimal 800 - 1000 kata dengan pembahasan yang padat dan berisi (bukan sekadar mengulang kalimat).
-4. ANTI-AI FILTER: Hindari frasa klise AI seperti: "Di era digital ini...", "Penting untuk diingat...", "Mari kita bahas...", "Kesimpulannya...", "Secara keseluruhan...". Langsung masuk ke inti pembahasan.
-5. FORMAT OUTPUT: Hasilkan output dalam format JSON mentah (Raw JSON) seperti struktur di bawah ini agar mudah diparsing oleh skrip Python:
+SEO & GAYA PENULISAN:
+1. PEMBUKAAN: "Halo, balik lagi di Penting Literasi!" — paragraf pertama max 160 char sebagai meta description.
+2. SUASANA: Ngobrol santai, pake "kita", jokes ringan.
+3. HEADING: Minimal 3 <h2> per artikel. Keyword utama di minimal 2 heading. <h3> untuk sub-bagian.
+4. KEYWORD: Kata kunci utama di judul, H2 pertama, paragraf awal. Bold keyword pake <strong>.
+5. TABEL: <table style="border-collapse:collapse;width:100%;margin:15px 0">, <th style="background:#f2f2f2;padding:10px;border:1px solid #ddd;text-align:left">, <td style="padding:8px;border:1px solid #ddd">
+6. BAHASA: Indonesian natural + istilah Inggris (booting, coding, dll).
+7. KEDALAMAN: 1500-2500 kata, detail teknis + data + studi kasus.
+8. LARANGAN: "Di era digital ini...", "Penting untuk diingat...", "Mari kita bahas...", "Kesimpulannya...", "Secara keseluruhan..."
+9. PENUTUP: "Punya pengalaman [topik]? Tulis di komentar ya! 😊"
+10. LABELS: Satu dari: [Teknologi, Komputer, Sistem Operasi, Windows, Linux, Programming, Python, Java, C++, HTML, JavaScript, Hacking, Teknik Hacking, Jaringan, TKJ, Video Game, Nintendo, Dunia, Sejarah, Informasi]
 
-{
-  "title": "[Judul Artikel yang Menarik dan Mengandung Kata Kunci]",
-  "content": "[Konten artikel lengkap dalam format HTML, gunakan tag <p>, <h2>, <h3>, <ul>, <li>. Pastikan semua tag ditutup dengan benar]",
-  "labels": ["[Maksimal 3 label/kategori yang relevan]"]
-}
+FORMAT OUTPUT JSON:
+{"title": "[Judul dgn keyword, max 60 char sebelum pipe]", "content": "[HTML: <p>meta description</p><p>...</p><h2>...</h2><p>...</p><table>...</table><h2>...</h2><p>...</p>]", "labels": ["[Satu label]"]}
 
-Topik yang harus Anda kembangkan hari ini adalah: """
+Topik: """
 
 
 def validate_config() -> List[str]:

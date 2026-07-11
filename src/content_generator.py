@@ -16,10 +16,12 @@ from src.config import (
     CUSTOM_MODEL,
     GEMINI_API_KEY,
     GEMINI_MODEL,
+    IMAGE_ENABLED,
     OPENAI_API_KEY,
     OPENAI_MODEL,
     load_master_prompt,
 )
+from src.image_provider import get_image_url, inject_image_to_content, wrap_image_html
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,7 @@ def _parse_json_response(raw_text: str) -> Optional[Dict]:
 
 
 def generate_with_custom_api(
-    topic: str, master_prompt: str
+    topic: str, master_prompt: str, backlinks_context: str = ""
 ) -> Optional[GeneratedArticle]:
     """
     Generate article content using a custom OpenAI-compatible API
@@ -103,6 +105,7 @@ def generate_with_custom_api(
     Args:
         topic: The topic or trend to write about.
         master_prompt: The system instruction / master prompt text.
+        backlinks_context: Optional context about existing articles for internal linking.
         
     Returns:
         GeneratedArticle object or None if failed.
@@ -119,7 +122,7 @@ def generate_with_custom_api(
             api_key=CUSTOM_API_KEY,
         )
 
-        full_prompt = f"{master_prompt}\n\n{ topic}"
+        full_prompt = f"{master_prompt}\n\n{backlinks_context}\n\n{ topic}"
 
         logger.info(
             f"Generating article with custom API ({CUSTOM_MODEL} @ "
@@ -132,14 +135,15 @@ def generate_with_custom_api(
                 {
                     "role": "system",
                     "content": (
-                        "Anda adalah seorang Content Writer profesional dan "
-                        "pakar SEO. Hasilkan output dalam format JSON."
+                        "Anda adalah Naufal Rakha Putra, penulis blog Penting Literasi. "
+                        "Menulis artikel teknologi dengan gaya santai, engaging, "
+                        "dan mudah dipahami. Output dalam format JSON."
                     ),
                 },
                 {"role": "user", "content": full_prompt},
             ],
             temperature=0.8,
-            max_tokens=8192,
+            max_tokens=16384,
         )
 
         raw_text = response.choices[0].message.content
@@ -177,7 +181,7 @@ def generate_with_custom_api(
 
 
 def generate_with_gemini(
-    topic: str, master_prompt: str
+    topic: str, master_prompt: str, backlinks_context: str = ""
 ) -> Optional[GeneratedArticle]:
     """
     Generate article content using Google Gemini API (google-genai SDK).
@@ -185,6 +189,7 @@ def generate_with_gemini(
     Args:
         topic: The topic or trend to write about.
         master_prompt: The system instruction / master prompt text.
+        backlinks_context: Optional context about existing articles for internal linking.
         
     Returns:
         GeneratedArticle object or None if failed.
@@ -199,7 +204,7 @@ def generate_with_gemini(
 
         client = genai.Client(api_key=GEMINI_API_KEY)
 
-        full_prompt = f"{master_prompt}\n\n{ topic}"
+        full_prompt = f"{master_prompt}\n\n{backlinks_context}\n\n{ topic}"
 
         logger.info(f"Generating article with Gemini ({GEMINI_MODEL})...")
 
@@ -209,7 +214,7 @@ def generate_with_gemini(
             config=types.GenerateContentConfig(
                 temperature=0.8,
                 top_p=0.95,
-                max_output_tokens=8192,
+                max_output_tokens=16384,
             ),
         )
 
@@ -247,7 +252,7 @@ def generate_with_gemini(
 
 
 def generate_with_openai(
-    topic: str, master_prompt: str
+    topic: str, master_prompt: str, backlinks_context: str = ""
 ) -> Optional[GeneratedArticle]:
     """
     Generate article content using OpenAI API (fallback).
@@ -255,6 +260,7 @@ def generate_with_openai(
     Args:
         topic: The topic or trend to write about.
         master_prompt: The system instruction / master prompt text.
+        backlinks_context: Optional context about existing articles for internal linking.
         
     Returns:
         GeneratedArticle object or None if failed.
@@ -268,7 +274,7 @@ def generate_with_openai(
 
         client = OpenAI(api_key=OPENAI_API_KEY)
 
-        full_prompt = f"{master_prompt}\n\n{ topic}"
+        full_prompt = f"{master_prompt}\n\n{backlinks_context}\n\n{ topic}"
 
         logger.info(f"Generating article with OpenAI ({OPENAI_MODEL})...")
 
@@ -278,14 +284,15 @@ def generate_with_openai(
                 {
                     "role": "system",
                     "content": (
-                        "Anda adalah seorang Content Writer profesional dan "
-                        "pakar SEO. Hasilkan output dalam format JSON."
+                        "Anda adalah Naufal Rakha Putra, penulis blog Penting Literasi. "
+                        "Menulis artikel teknologi dengan gaya santai, engaging, "
+                        "dan mudah dipahami. Output dalam format JSON."
                     ),
                 },
                 {"role": "user", "content": full_prompt},
             ],
             temperature=0.8,
-            max_tokens=8192,
+            max_tokens=16384,
         )
 
         raw_text = response.choices[0].message.content
@@ -320,13 +327,41 @@ def generate_with_openai(
         return None
 
 
-def generate_article(topic: str) -> Tuple[Optional[GeneratedArticle], str]:
+def _inject_article_image(article: GeneratedArticle) -> GeneratedArticle:
+    """
+    Add a relevant image to the article content.
+    
+    Args:
+        article: The generated article.
+        
+    Returns:
+        Article with image injected (or unchanged if disabled).
+    """
+    if not IMAGE_ENABLED or not article.content:
+        return article
+
+    try:
+        img_url = get_image_url(article.title, article.content)
+        if img_url:
+            img_html = wrap_image_html(img_url, article.title)
+            article.content = inject_image_to_content(article.content, img_html)
+            logger.info(f"Image added to article: {img_url}")
+    except Exception as e:
+        logger.warning(f"Failed to add image: {e}")
+
+    return article
+
+
+def generate_article(
+    topic: str, backlinks_context: str = ""
+) -> Tuple[Optional[GeneratedArticle], str]:
     """
     Generate an article using available AI providers.
     Priority: Custom API (local) > Gemini API > OpenAI API.
     
     Args:
         topic: The topic or trend to write about.
+        backlinks_context: Optional context about existing articles for internal linking.
         
     Returns:
         Tuple of (GeneratedArticle or None, provider_name used).
@@ -335,21 +370,21 @@ def generate_article(topic: str) -> Tuple[Optional[GeneratedArticle], str]:
 
     # Priority 1: Custom API (local/self-hosted - no rate limits)
     if CUSTOM_API_BASE_URL:
-        article = generate_with_custom_api(topic, master_prompt)
+        article = generate_with_custom_api(topic, master_prompt, backlinks_context)
         if article:
-            return article, "custom"
+            return _inject_article_image(article), "custom"
 
     # Priority 2: Gemini API (cloud fallback)
     if GEMINI_API_KEY:
-        article = generate_with_gemini(topic, master_prompt)
+        article = generate_with_gemini(topic, master_prompt, backlinks_context)
         if article:
-            return article, "gemini"
+            return _inject_article_image(article), "gemini"
 
     # Priority 3: OpenAI API (secondary fallback)
     if OPENAI_API_KEY:
-        article = generate_with_openai(topic, master_prompt)
+        article = generate_with_openai(topic, master_prompt, backlinks_context)
         if article:
-            return article, "openai"
+            return _inject_article_image(article), "openai"
 
     logger.error(
         "All AI providers failed. "

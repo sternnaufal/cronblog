@@ -24,6 +24,8 @@ from googleapiclient.errors import HttpError
 from src.config import (
     BLOGGER_BLOG_ID,
     CLIENT_SECRET_PATH,
+    PUBLISH_DELAY_HOURS,
+    PUBLISH_MODE,
     SERVICE_ACCOUNT_PATH,
     TOKEN_PATH,
 )
@@ -90,7 +92,7 @@ def _authenticate_via_oauth_flow() -> Optional[Credentials]:
         )
         creds = flow.run_local_server(
             port=0,
-            open_browser=False,
+            open_browser=True,
         )
         logger.info("Completed OAuth 2.0 authorization flow")
 
@@ -114,9 +116,9 @@ def authenticate() -> Optional[Credentials]:
     Authenticate with Google Blogger API.
     
     Authentication priority:
-    1. token.json (existing OAuth user token - best for CI/automation)
-    2. Service account JSON key file (for server-to-server)
-    3. OAuth flow via client_secret.json (interactive, first-time setup)
+    1. token.json (existing OAuth user token)
+    2. OAuth flow via client_secret.json (interactive, opens browser)
+    3. Service account JSON key file (last resort for CI/headless)
     
     Returns:
         Credentials object or None if all methods fail.
@@ -136,23 +138,41 @@ def authenticate() -> Optional[Credentials]:
             logger.warning(f"Failed to refresh token: {e}")
             creds = None
 
-    # Priority 2: Try service account
-    sa_creds = _authenticate_via_service_account()
-    if sa_creds:
-        return sa_creds
+    # Priority 2: Interactive OAuth flow (opens browser)
+    if CLIENT_SECRET_PATH.exists():
+        logger.info("Starting OAuth flow - browser will open...")
+        oauth_creds = _authenticate_via_oauth_flow()
+        if oauth_creds:
+            return oauth_creds
+    else:
+        logger.info(
+            "No client_secret.json found for OAuth flow. "
+            "Skipping to service account..."
+        )
 
-    # Priority 3: Interactive OAuth flow (requires browser)
-    return _authenticate_via_oauth_flow()
+    # Priority 3: Service account (headless/CI fallback)
+    logger.info("Trying service account authentication...")
+    return _authenticate_via_service_account()
 
 
-def publish_draft(
+def publish_post(
     title: str,
     content: str,
     labels: Optional[List[str]] = None,
     creds: Optional[Credentials] = None,
 ) -> Optional[Dict]:
     """
-    Publish a blog post as DRAFT to Blogger.
+    Publish a blog post to Blogger.
+    
+    Modes (configurable via PUBLISH_MODE in .env):
+      - draft     = simpan sebagai draft (default)
+      - live      = publish langsung ke blog
+      - scheduled = publish otomatis setelah PUBLISH_DELAY_HOURS jam
+    
+    Cara kerja:
+      - draft: insert dengan isDraft=true
+      - live: insert sebagai draft, lalu publish via posts.publish()
+      - scheduled: insert sebagai draft, lalu posts.publish(publishDate=future)
     
     Args:
         title: The article title.
@@ -177,39 +197,83 @@ def publish_draft(
         # Build Blogger API v3 service
         service = build("blogger", "v3", credentials=creds)
 
-        # Prepare the post body
+        from datetime import datetime, timedelta, timezone
+
+        is_draft_mode = PUBLISH_MODE == "draft"
+        is_live_mode = PUBLISH_MODE == "live"
+        is_scheduled_mode = PUBLISH_MODE == "scheduled"
+
+        # --- Step 1: Insert as draft ---
         post_body: Dict = {
             "kind": "blogger#post",
             "title": title,
             "content": content,
             "status": "DRAFT",
         }
-
         if labels:
             post_body["labels"] = labels
 
+        mode_label = {
+            "draft": "DRAFT",
+            "live": "LIVE",
+            "scheduled": f"SCHEDULED (+{PUBLISH_DELAY_HOURS}h)",
+        }.get(PUBLISH_MODE, "DRAFT")
+
         logger.info(
-            f"Publishing draft to Blogger (Blog ID: {BLOGGER_BLOG_ID})..."
+            f"Publishing to Blogger (Blog ID: {BLOGGER_BLOG_ID})..."
         )
+        logger.info(f"  Mode: {mode_label}")
         logger.info(f"  Title: {title[:80]}")
         logger.info(f"  Labels: {labels}")
         logger.info(f"  Content length: {len(content)} chars")
 
-        # Execute the insert request
+        # Insert as draft first (always)
         request = service.posts().insert(
             blogId=BLOGGER_BLOG_ID,
             body=post_body,
-            isDraft=True,  # Explicitly set as draft
+            isDraft=True,
         )
         response = request.execute()
-
         post_id = response.get("id", "unknown")
-        post_url = response.get("url", "unknown")
 
-        logger.info(f"✅ Draft published successfully!")
-        logger.info(f"  Post ID: {post_id}")
-        logger.info(f"  URL: {post_url}")
-        logger.info(f"  Status: {response.get('status', 'unknown')}")
+        logger.info(f"  Draft created: ID {post_id}")
+
+        # --- Step 2: Publish or schedule if not draft mode ---
+        if is_live_mode:
+            logger.info("  Publishing immediately...")
+            publish_request = service.posts().publish(
+                blogId=BLOGGER_BLOG_ID,
+                postId=post_id,
+            )
+            response = publish_request.execute()
+            logger.info(f"✅ Published LIVE!")
+            logger.info(f"  URL: {response.get('url', 'unknown')}")
+            logger.info(f"  Status: {response.get('status', 'unknown')}")
+
+        elif is_scheduled_mode and PUBLISH_DELAY_HOURS > 0:
+            scheduled_time = datetime.now(timezone.utc) + timedelta(
+                hours=PUBLISH_DELAY_HOURS
+            )
+            publish_date_str = scheduled_time.strftime(
+                "%Y-%m-%dT%H:%M:%S.000Z"
+            )
+            logger.info(
+                f"  Scheduling for: "
+                f"{scheduled_time.strftime('%Y-%m-%d %H:%M UTC')}"
+            )
+            publish_request = service.posts().publish(
+                blogId=BLOGGER_BLOG_ID,
+                postId=post_id,
+                publishDate=publish_date_str,
+            )
+            response = publish_request.execute()
+            logger.info(f"✅ Scheduled! ({PUBLISH_DELAY_HOURS}h from now)")
+            logger.info(f"  URL: {response.get('url', 'unknown')}")
+            logger.info(f"  Status: {response.get('status', 'unknown')}")
+
+        else:
+            logger.info(f"✅ Saved as DRAFT")
+            logger.info(f"  URL: {response.get('url', 'unknown')}")
 
         return response
 
@@ -281,3 +345,81 @@ def list_recent_drafts(
     except Exception as e:
         logger.error(f"Unexpected error listing drafts: {e}")
         return None
+
+
+def list_recent_posts(
+    max_results: int = 10, creds: Optional[Credentials] = None
+) -> List[Dict]:
+    """
+    List recent published posts from the blog (for internal backlink references).
+    
+    Args:
+        max_results: Maximum number of posts to retrieve.
+        creds: OAuth2 credentials.
+        
+    Returns:
+        List of post dicts with 'title', 'url', 'id' keys. Empty list on error.
+    """
+    if not BLOGGER_BLOG_ID:
+        return []
+
+    if not creds:
+        creds = authenticate()
+        if not creds:
+            return []
+
+    try:
+        service = build("blogger", "v3", credentials=creds)
+        request = service.posts().list(
+            blogId=BLOGGER_BLOG_ID,
+            status="live",
+            maxResults=max_results,
+        )
+        response = request.execute()
+        items = response.get("items", [])
+
+        # Extract only what we need for backlink context
+        posts = []
+        for item in items:
+            posts.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "labels": item.get("labels", []),
+            })
+
+        logger.info(f"Found {len(posts)} recent published post(s) for backlinks")
+        return posts
+
+    except HttpError as e:
+        logger.warning(f"Blogger API error listing posts: {e}")
+        return []
+    except Exception as e:
+        logger.warning(f"Unexpected error listing posts: {e}")
+        return []
+
+
+def format_posts_for_backlinks(posts: List[Dict]) -> str:
+    """
+    Format recent posts as context for the AI to generate backlinks.
+    
+    Args:
+        posts: List of post dicts from list_recent_posts.
+        
+    Returns:
+        Formatted string of articles for the prompt.
+    """
+    if not posts:
+        return "(belum ada artikel terpublished untuk dijadikan backlink)"
+
+    lines = []
+    for i, post in enumerate(posts, 1):
+        title = post.get("title", "Tanpa Judul")
+        url = post.get("url", "")
+        labels = ", ".join(post.get("labels", []))
+        lines.append(f"{i}. {title}")
+        lines.append(f"   URL: {url}")
+        if labels:
+            lines.append(f"   Label: {labels}")
+        lines.append("")
+
+    return "\n".join(lines)
