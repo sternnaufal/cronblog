@@ -1,0 +1,18 @@
+# Core
+google-genai>=2.0.0           # Google Gen AI SDK (Gemini API) - NEW SDK, replaces deprecated google-generativeai
+google-api-python-client>=2.0.0  # Blogger API v3
+google-auth-oauthlib>=1.0.0     # OAuth 2.0 for Google APIs
+google-auth-httplib2>=0.1.0     # HTTP transport for Google Auth
+
+# AI Providers (optional - at least one required)
+openai>=1.0.0                 # OpenAI API (fallback)
+
+# HTTP & Scraping
+requests>=2.31.0
+feedparser>=6.0.0             # RSS Feed parser
+beautifulsoup4>=4.12.0        # HTML parsing
+lxml>=5.0.0                   # XML parser for feedparser
+
+# Utility
+python-dotenv>=1.0.0          # Environment variables
+pydantic>=2.0.0               # Data validation
