@@ -1,6 +1,7 @@
 """
 Content Generator Module
-Generates blog post content using Gemini API (primary) or OpenAI API (fallback).
+Generates blog post content using AI APIs.
+Provider priority: Custom API (local) > Gemini API > OpenAI API.
 Uses the Master Prompt to produce SEO-optimized, human-like articles.
 """
 
@@ -10,6 +11,9 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from src.config import (
+    CUSTOM_API_BASE_URL,
+    CUSTOM_API_KEY,
+    CUSTOM_MODEL,
     GEMINI_API_KEY,
     GEMINI_MODEL,
     OPENAI_API_KEY,
@@ -85,6 +89,91 @@ def _parse_json_response(raw_text: str) -> Optional[Dict]:
 
     logger.error(f"Failed to parse JSON from LLM response: {text[:200]}...")
     return None
+
+
+def generate_with_custom_api(
+    topic: str, master_prompt: str
+) -> Optional[GeneratedArticle]:
+    """
+    Generate article content using a custom OpenAI-compatible API
+    (local/self-hosted: Ollama, vLLM, LocalAI, 9router, etc.).
+    
+    This is the PRIMARY provider - no API key required for local endpoints.
+    
+    Args:
+        topic: The topic or trend to write about.
+        master_prompt: The system instruction / master prompt text.
+        
+    Returns:
+        GeneratedArticle object or None if failed.
+    """
+    if not CUSTOM_API_BASE_URL:
+        logger.warning("CUSTOM_API_BASE_URL not configured, skipping custom API")
+        return None
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(
+            base_url=CUSTOM_API_BASE_URL,
+            api_key=CUSTOM_API_KEY,
+        )
+
+        full_prompt = f"{master_prompt}\n\n{ topic}"
+
+        logger.info(
+            f"Generating article with custom API ({CUSTOM_MODEL} @ "
+            f"{CUSTOM_API_BASE_URL})..."
+        )
+
+        response = client.chat.completions.create(
+            model=CUSTOM_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Anda adalah seorang Content Writer profesional dan "
+                        "pakar SEO. Hasilkan output dalam format JSON."
+                    ),
+                },
+                {"role": "user", "content": full_prompt},
+            ],
+            temperature=0.8,
+            max_tokens=8192,
+        )
+
+        raw_text = response.choices[0].message.content
+        if not raw_text:
+            logger.error("Custom API returned empty response")
+            return None
+
+        parsed = _parse_json_response(raw_text)
+        if not parsed:
+            logger.error("Custom API response was not valid JSON")
+            logger.debug(f"Raw response: {raw_text[:500]}")
+            return None
+
+        article = GeneratedArticle.from_dict(parsed)
+
+        if not article.title or not article.content:
+            logger.error(
+                f"Custom API generated incomplete article: "
+                f"title={bool(article.title)}, "
+                f"content={bool(article.content)}"
+            )
+            return None
+
+        logger.info(f"Successfully generated article: '{article.title}'")
+        return article
+
+    except ImportError:
+        logger.error(
+            "openai package not installed. Run: pip install openai"
+        )
+        return None
+    except Exception as e:
+        logger.error(f"Custom API error: {e}")
+        return None
 
 
 def generate_with_gemini(
@@ -233,8 +322,8 @@ def generate_with_openai(
 
 def generate_article(topic: str) -> Tuple[Optional[GeneratedArticle], str]:
     """
-    Generate an article using the primary AI provider (Gemini)
-    with OpenAI as fallback.
+    Generate an article using available AI providers.
+    Priority: Custom API (local) > Gemini API > OpenAI API.
     
     Args:
         topic: The topic or trend to write about.
@@ -244,19 +333,26 @@ def generate_article(topic: str) -> Tuple[Optional[GeneratedArticle], str]:
     """
     master_prompt = load_master_prompt()
 
-    # Try Gemini first (primary)
+    # Priority 1: Custom API (local/self-hosted - no rate limits)
+    if CUSTOM_API_BASE_URL:
+        article = generate_with_custom_api(topic, master_prompt)
+        if article:
+            return article, "custom"
+
+    # Priority 2: Gemini API (cloud fallback)
     if GEMINI_API_KEY:
         article = generate_with_gemini(topic, master_prompt)
         if article:
             return article, "gemini"
 
-    # Fallback to OpenAI
+    # Priority 3: OpenAI API (secondary fallback)
     if OPENAI_API_KEY:
         article = generate_with_openai(topic, master_prompt)
         if article:
             return article, "openai"
 
     logger.error(
-        "All AI providers failed. Check your API keys and internet connection."
+        "All AI providers failed. "
+        "Make sure your local API is running or check cloud API keys."
     )
     return None, ""

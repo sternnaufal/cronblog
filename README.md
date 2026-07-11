@@ -1,6 +1,6 @@
 # cronblog - Automated Blogger Publisher
 
-Bot penulis artikel otomatis yang mengambil tren dari RSS feed, menghasilkan konten berkualitas via AI (Gemini/OpenAI), dan menyimpannya sebagai **Draft** di Blogger untuk kurasi manual.
+Bot penulis artikel otomatis yang mengambil tren dari RSS feed, menghasilkan konten berkualitas via AI (local/cloud), dan menyimpannya sebagai **Draft** di Blogger untuk kurasi manual.
 
 ## Arsitektur
 
@@ -11,18 +11,18 @@ Bot penulis artikel otomatis yang mengambil tren dari RSS feed, menghasilkan kon
 [Python Script]
          │
          ├──► 1. Ambil Tren (RSS Feed / Google News)
-         ├──► 2. Kirim ke Gemini/OpenAI API (Master Prompt)
+         ├──► 2. Kirim ke AI API (Custom Local API > Gemini > OpenAI)
          └──► 3. Kirim ke Blogger API v3 (Status: DRAFT)
 ```
 
 ## Fitur
 
 - **Trend Fetching**: Mengambil topik tren dari RSS feed (Google News, dll.)
-- **AI Content Generation**: Menghasilkan artikel SEO-friendly via Gemini API atau OpenAI API
+- **AI Content Generation**: Custom local API (primary) + Gemini/OpenAI (fallback)
 - **Draft System**: Semua artikel disimpan sebagai **DRAFT** di Blogger untuk kurasi manual
 - **Anti-AI Filter**: Master prompt dirancang untuk menghasilkan teks alami tanpa jejak AI
 - **Scheduled**: Berjalan otomatis 2x seminggu via GitHub Actions
-- **Dual Provider**: Gemini sebagai primary, OpenAI sebagai fallback
+- **Triple Provider**: Custom API > Gemini API > OpenAI API (failover cascade)
 
 ## Struktur Folder
 
@@ -37,7 +37,7 @@ cronblog/
 │   ├── main.py                  # Entry point CLI
 │   ├── config.py                # Konfigurasi & env vars
 │   ├── trend_fetcher.py         # RSS feed scraper
-│   ├── content_generator.py     # Gemini/OpenAI integration
+│   ├── content_generator.py     # Custom API / Gemini / OpenAI
 │   └── blogger_publisher.py     # Blogger API v3 client
 ├── .env.example                 # Template environment variables
 ├── requirements.txt             # Python dependencies
@@ -49,8 +49,8 @@ cronblog/
 ### 1. Prasyarat
 
 - Python 3.10+
+- Local AI API (Ollama, vLLM, 9router, dll.) atau cloud API key (Gemini/OpenAI)
 - Google Cloud Project dengan Blogger API diaktifkan
-- Gemini API Key atau OpenAI API Key
 
 ### 2. Instalasi
 
@@ -73,7 +73,9 @@ pip install -r requirements.txt
 # Copy .env.example ke .env
 copy .env.example .env
 
-# Edit .env dengan kredensial kamu
+# Edit .env - cukup set:
+#   CUSTOM_API_BASE_URL=http://localhost:20128/v1
+#   BLOGGER_BLOG_ID=your_blog_id
 ```
 
 ### 4. Google OAuth Setup
@@ -88,13 +90,25 @@ copy .env.example .env
 
 ### 5. GitHub Secrets Setup
 
+> **Catatan**: GitHub Actions tidak bisa akses `localhost`. Pastikan setidaknya
+> Gemini atau OpenAI API key sebagai fallback untuk CI/CD.
+
 | Secret | Deskripsi |
 |--------|-----------|
-| `GEMINI_API_KEY` | Google Gemini API Key |
+| `CUSTOM_API_BASE_URL` | Local API URL (localhost - skip di CI) |
+| `GEMINI_API_KEY` | Google Gemini API Key (fallback) |
 | `OPENAI_API_KEY` | OpenAI API Key (fallback) |
 | `BLOGGER_BLOG_ID` | Blogger Blog ID |
 | `BLOGGER_CLIENT_SECRET_JSON` | client_secret.json (base64) |
 | `BLOGGER_TOKEN_JSON` | token.json (base64 - dari hasil OAuth) |
+
+## Provider Priority
+
+Sistem menggunakan cascade failover:
+
+1. **Custom API** (local) — tidak ada rate limit, gratis
+2. **Gemini API** — cloud fallback jika local down
+3. **OpenAI API** — secondary fallback
 
 ## Penggunaan
 
@@ -136,7 +150,8 @@ File `prompts/master_prompt.txt` berisi system instruction untuk AI. Prompt ini 
 ## Tech Stack
 
 - **Python 3.10+**
-- **google-genai** (Gemini API SDK baru)
+- **OpenAI SDK** (custom API + OpenAI fallback)
+- **google-genai** (Gemini API SDK)
 - **google-api-python-client** (Blogger API v3)
 - **feedparser** (RSS parsing)
 - **GitHub Actions** (Scheduling)
@@ -146,3 +161,4 @@ File `prompts/master_prompt.txt` berisi system instruction untuk AI. Prompt ini 
 - Semua artikel dibuat sebagai **DRAFT** - tidak otomatis terpublish
 - Review dan publish manual di [Blogger Dashboard](https://www.blogger.com/)
 - Pastikan token OAuth direfresh secara berkala
+- Local API (9router/Ollama) harus berjalan saat eksekusi lokal

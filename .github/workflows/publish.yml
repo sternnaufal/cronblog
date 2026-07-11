@@ -54,6 +54,11 @@ jobs:
         working-directory: cronblog
         run: |
           cat > .env << EOF
+          # Custom API (local - skipped in CI since it's localhost)
+          CUSTOM_API_BASE_URL=${{ secrets.CUSTOM_API_BASE_URL || 'http://localhost:20128/v1' }}
+          CUSTOM_API_KEY=${{ secrets.CUSTOM_API_KEY || 'not-needed' }}
+          CUSTOM_MODEL=${{ secrets.CUSTOM_MODEL || 'combo1' }}
+          # Cloud fallbacks
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL=${{ secrets.OPENAI_MODEL || 'gpt-4o-mini' }}

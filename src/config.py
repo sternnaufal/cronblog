@@ -42,11 +42,19 @@ def get_env_list(key: str, default: Optional[List[str]] = None) -> List[str]:
 
 # --- AI Provider Settings ---
 
-# Gemini
+# Custom OpenAI-compatible API (PRIMARY provider)
+# Use any local/self-hosted API (Ollama, vLLM, LocalAI, 9router, etc.)
+CUSTOM_API_BASE_URL: str = get_env_str(
+    "CUSTOM_API_BASE_URL", "http://localhost:20128/v1"
+)
+CUSTOM_API_KEY: str = get_env_str("CUSTOM_API_KEY", "not-needed")
+CUSTOM_MODEL: str = get_env_str("CUSTOM_MODEL", "combo1")
+
+# Gemini (fallback if custom API fails)
 GEMINI_API_KEY: str = get_env_str("GEMINI_API_KEY")
 GEMINI_MODEL: str = get_env_str("GEMINI_MODEL", "gemini-2.5-flash")
 
-# OpenAI (fallback)
+# OpenAI (secondary fallback)
 OPENAI_API_KEY: str = get_env_str("OPENAI_API_KEY")
 OPENAI_MODEL: str = get_env_str("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -149,9 +157,12 @@ def validate_config() -> List[str]:
     """
     errors: List[str] = []
 
-    if not GEMINI_API_KEY and not OPENAI_API_KEY:
+    if not CUSTOM_API_BASE_URL and not GEMINI_API_KEY and not OPENAI_API_KEY:
         errors.append(
-            "Either GEMINI_API_KEY or OPENAI_API_KEY must be set in .env"
+            "At least one AI provider must be configured in .env:\n"
+            "  - CUSTOM_API_BASE_URL (recommended - local/self-hosted API)\n"
+            "  - GEMINI_API_KEY (cloud fallback)\n"
+            "  - OPENAI_API_KEY (cloud fallback)"
         )
 
     if not BLOGGER_BLOG_ID:
