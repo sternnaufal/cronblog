@@ -143,7 +143,7 @@ def generate_with_custom_api(
                 {"role": "user", "content": full_prompt},
             ],
             temperature=0.8,
-            max_tokens=16384,
+            max_tokens=8192,
         )
 
         raw_text = response.choices[0].message.content
