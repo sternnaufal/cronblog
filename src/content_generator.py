@@ -120,7 +120,6 @@ def generate_with_custom_api(
         client = OpenAI(
             base_url=CUSTOM_API_BASE_URL,
             api_key=CUSTOM_API_KEY,
-            timeout=300,
         )
 
         full_prompt = f"{master_prompt}\n\n{backlinks_context}\n\n{ topic}"
