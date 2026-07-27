@@ -29,10 +29,13 @@ logger = logging.getLogger(__name__)
 class GeneratedArticle:
     """Represents an AI-generated article ready for publishing."""
 
-    def __init__(self, title: str, content: str, labels: List[str]):
+    def __init__(self, title: str, content: str, labels):
         self.title = title.strip()
         self.content = content.strip()
-        self.labels = [label.strip() for label in labels if label.strip()]
+        if isinstance(labels, str):
+            self.labels = [labels.strip()] if labels.strip() else []
+        else:
+            self.labels = [label.strip() for label in labels if label.strip()]
 
     def to_dict(self) -> Dict:
         return {
