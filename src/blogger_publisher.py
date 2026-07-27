@@ -331,7 +331,7 @@ def list_recent_drafts(
         service = build("blogger", "v3", credentials=creds)
         request = service.posts().list(
             blogId=BLOGGER_BLOG_ID,
-            status="draft",
+            status="DRAFT",
             maxResults=max_results,
         )
         response = request.execute()
@@ -372,7 +372,7 @@ def list_recent_posts(
         service = build("blogger", "v3", credentials=creds)
         request = service.posts().list(
             blogId=BLOGGER_BLOG_ID,
-            status="live",
+            status="LIVE",
             maxResults=max_results,
         )
         response = request.execute()
