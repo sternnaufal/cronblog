@@ -143,7 +143,7 @@ def generate_with_custom_api(
                 {"role": "user", "content": full_prompt},
             ],
             temperature=0.8,
-            max_tokens=6144,
+            max_tokens=8192,
         )
 
         raw_text = response.choices[0].message.content
@@ -214,7 +214,7 @@ def generate_with_gemini(
             config=types.GenerateContentConfig(
                 temperature=0.8,
                 top_p=0.95,
-                max_output_tokens=8192,
+                max_output_tokens=16384,
             ),
         )
 
@@ -272,7 +272,7 @@ def generate_with_openai(
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=OPENAI_API_KEY, timeout=120)
+        client = OpenAI(api_key=OPENAI_API_KEY)
 
         full_prompt = f"{master_prompt}\n\n{backlinks_context}\n\n{ topic}"
 
