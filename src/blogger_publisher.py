@@ -25,7 +25,6 @@ from src.config import (
     BLOGGER_BLOG_ID,
     CLIENT_SECRET_PATH,
     PUBLISH_DELAY_HOURS,
-    PUBLISH_MODE,
     SERVICE_ACCOUNT_PATH,
     TOKEN_PATH,
 )
@@ -199,9 +198,10 @@ def publish_post(
 
         from datetime import datetime, timedelta, timezone
 
-        is_draft_mode = PUBLISH_MODE == "draft"
-        is_live_mode = PUBLISH_MODE == "live"
-        is_scheduled_mode = PUBLISH_MODE == "scheduled"
+        publish_mode = os.environ.get("PUBLISH_MODE", "draft").lower()
+        is_draft_mode = publish_mode == "draft"
+        is_live_mode = publish_mode == "live"
+        is_scheduled_mode = publish_mode == "scheduled"
 
         # --- Step 1: Insert as draft ---
         post_body: Dict = {
@@ -217,7 +217,7 @@ def publish_post(
             "draft": "DRAFT",
             "live": "LIVE",
             "scheduled": f"SCHEDULED (+{PUBLISH_DELAY_HOURS}h)",
-        }.get(PUBLISH_MODE, "DRAFT")
+        }.get(publish_mode, "DRAFT")
 
         logger.info(
             f"Publishing to Blogger (Blog ID: {BLOGGER_BLOG_ID})..."
