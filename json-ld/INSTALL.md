@@ -6,29 +6,34 @@ Copy-paste JSON-LD ke `<head>` di setiap domain. Semua tipe ada di `templates.js
 
 ### Blogger (blog.naufalrakha.my.id)
 
-1. Buka **Blogger Dashboard** → **Theme** → **Edit HTML**
-2. Cari tag `<head>`
-3. Tambahkan JSON-LD **tepat setelah** `<head>`:
+⚠️ **PENTING:** Hanya JSON-LD **statis** (WebSite, Person, Organization) yang boleh di `<head>`. JSON-LD **dinamis** (BlogPosting, BreadcrumbList) yang pake `<data:post.title/>` dkk. WAJIB di dalem `<b:includable id='post' var='post'>` — kalo ditaruh di `<head>` bakal error `<!--Can't find substitution for tag...-->`.
 
-```html
-<head>
-  <!-- JSON-LD Structured Data -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "Penting Literasi",
-    "url": "https://blog.naufalrakha.my.id/"
-  }
-  </script>
-  
-  <!-- Person Schema (copy dari templates.js) -->
-  <script type="application/ld+json">
-  { "copy dari templates.js bagian Person" }
-  </script>
-  ...
-</head>
-```
+1. Buka **Blogger Dashboard** → **Theme** → **Edit HTML**
+2. Untuk schema **statis** (Person, WebSite, Organization, BreadcrumbList):
+   - Cari tag `<head>`, tambah **tepat setelah** `<head>`:
+   ```html
+   <head>
+     <!-- JSON-LD Structured Data -->
+     <script type="application/ld+json">
+     {
+       "@context": "https://schema.org",
+       "@type": "WebSite",
+       "name": "Penting Literasi",
+       "url": "https://blog.naufalrakha.my.id/"
+     }
+     </script>
+     
+     <!-- Person Schema (copy dari templates.js) -->
+     <script type="application/ld+json">
+     { "copy dari templates.js bagian Person" }
+     </script>
+     ...
+   </head>
+   ```
+3. Untuk schema **dinamis** (BlogPosting):
+   - Cari `<b:includable id='post' var='post'>` di template
+   - Tambah script JSON-LD **di DALEM** includable tsb. (bukan di `<head>`!)
+   - Lihat `BLOGGER_TEMPLATE_GUIDE.md` bagian 1.B untuk detail.
 
 ---
 
@@ -189,8 +194,10 @@ Setelah pasang, validasi di:
 
 | Domain | JSON-LD | Status |
 |--------|---------|--------|
-| naufalrakha.my.id | Person + Organization | ⬜ |
-| blog.naufalrakha.my.id | WebSite + Person | ⬜ |
+| naufalrakha.my.id | Person + WebSite (index.html) + Organization | ✅ |
+| blog.naufalrakha.my.id | WebSite + Person + BlogPosting* | ✅* |
 | digital.naufalrakha.my.id | WebSite + Person | ⬜ |
-| sternnaufal.github.io | WebSite | ⬜ |
+| sternnaufal.github.io | WebSite (via naufalrakha.my.id) | ✅ |
 | koleksi_naufal | ItemList | ⬜ |
+
+⚠️ *BlogPosting di blog.naufalrakha.my.id masih broken — schema ada di `<head>` (salah), harus dipindah ke dalem `<b:includable id='post'>`. Lihat `BLOGGER_TEMPLATE_GUIDE.md` bagian 1.B.
