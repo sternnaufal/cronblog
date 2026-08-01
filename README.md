@@ -162,3 +162,8 @@ File `prompts/master_prompt.txt` berisi system instruction untuk AI. Prompt ini 
 - Review dan publish manual di [Blogger Dashboard](https://www.blogger.com/)
 - Pastikan token OAuth direfresh secara berkala
 - Local API (9router/Ollama) harus berjalan saat eksekusi lokal
+
+
+---
+
+Dibuat oleh [Naufal Rakha Putra](https://www.naufalrakha.my.id) — lihat proyek lainnya di [naufalrakha.my.id](https://www.naufalrakha.my.id)
