@@ -20,6 +20,8 @@ import logging
 import sys
 from typing import List, Optional
 
+from src import __version__
+
 from src.blogger_publisher import (
     authenticate,
     format_posts_for_backlinks,
@@ -33,11 +35,13 @@ from src.config import (
     validate_config,
 )
 from src.content_generator import generate_article
+from src.labels import fetch_existing_labels
 from src.trend_fetcher import (
     TrendItem,
     format_topics_for_prompt,
     get_trending_topics,
 )
+from src.topic_queue import consume_topic, peek_topics, queue_size
 
 # Configure logging
 logging.basicConfig(
@@ -84,6 +88,12 @@ Examples:
         "-v",
         action="store_true",
         help="Enable debug logging",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"cronblog {__version__}",
+        help="Show version and exit",
     )
     parser.add_argument(
         "--interactive",
@@ -213,24 +223,35 @@ def run_pipeline(
         Exit code (0 = success).
     """
     # Step 1: Determine topic(s) to write about
+    queued = False
     if custom_topic:
         logger.info(f"Using custom topic: {custom_topic}")
         topics = [custom_topic]
     else:
-        logger.info("Fetching trending topics from RSS feeds...")
-        trends: List[TrendItem] = get_trending_topics(max_items=15)
-
-        if not trends:
-            logger.warning(
-                "No trending topics found. Using general tech topic."
+        topics = peek_topics(limit=num_articles)
+        if topics:
+            queued = True
+            logger.info(
+                f"Using {len(topics)} topic(s) from manual queue "
+                f"({queue_size()} total in queue)"
             )
-            topics = [
-                "Perkembangan teknologi AI dan dampaknya pada kehidupan sehari-hari"
-            ]
+            for i, queued_topic in enumerate(topics, 1):
+                logger.info(f"  {i}. {queued_topic}")
         else:
-            topic_text = format_topics_for_prompt(trends, count=5)
-            logger.info(f"Trending topics:\n{topic_text}")
-            topics = [topic_text]
+            logger.info("Queue is empty, fetching trending topics from RSS feeds...")
+            trends: List[TrendItem] = get_trending_topics(max_items=15)
+
+            if not trends:
+                logger.warning(
+                    "No trending topics found. Using general tech topic."
+                )
+                topics = [
+                    "Perkembangan teknologi AI dan dampaknya pada kehidupan sehari-hari"
+                ]
+            else:
+                topic_text = format_topics_for_prompt(trends, count=5)
+                logger.info(f"Trending topics:\n{topic_text}")
+                topics = [topic_text]
 
     # Step 2: Authenticate with Blogger (early, to fail fast)
     if not dry_run:
@@ -254,6 +275,9 @@ def run_pipeline(
         backlinks_context = format_posts_for_backlinks(recent_posts)
         logger.info(f"Backlink context: {len(recent_posts)} article(s) available")
 
+    existing_labels = fetch_existing_labels()
+    logger.info(f"Existing labels for tagging: {len(existing_labels)}")
+
     # Step 3: Generate and publish articles
     success_count = 0
     for i in range(min(num_articles, len(topics))):
@@ -265,7 +289,7 @@ def run_pipeline(
 
         # Generate article
         logger.info("Generating article content with AI...")
-        article, provider = generate_article(topic, backlinks_context)
+        article, provider = generate_article(topic, backlinks_context, existing_labels)
 
         if not article:
             logger.error(
@@ -291,6 +315,8 @@ def run_pipeline(
 
             if result:
                 success_count += 1
+                if queued:
+                    consume_topic(topic)
                 status = result.get("status", "unknown")
                 post_url = result.get("url", "")
                 logger.info(
@@ -377,7 +403,7 @@ def main() -> int:
     logger.info("=" * 50)
 
     # Validate configuration
-    config_errors = validate_config()
+    config_errors = validate_config(require_blogger_auth=not args.dry_run)
     if config_errors:
         logger.error("Configuration errors found:")
         for error in config_errors:

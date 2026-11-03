@@ -170,7 +170,7 @@ SEO & GAYA PENULISAN:
 7. KEDALAMAN: 1500-2500 kata, detail teknis + data + studi kasus.
 8. LARANGAN: "Di era digital ini...", "Penting untuk diingat...", "Mari kita bahas...", "Kesimpulannya...", "Secara keseluruhan..."
 9. PENUTUP: "Punya pengalaman [topik]? Tulis di komentar ya! 😊"
-10. LABELS: Satu dari: [Teknologi, Komputer, Sistem Operasi, Windows, Linux, Programming, Python, Java, C++, HTML, JavaScript, Hacking, Teknik Hacking, Jaringan, TKJ, Video Game, Nintendo, Dunia, Sejarah, Informasi]
+10. LABELS: Pilih 3-5 label. Label pertama wajib spesifik ke topik utama (boleh label baru), sisanya kategori luas. Prioritaskan label yang sudah ada: [Teknologi, Komputer, Sistem Operasi, Windows, Linux, Programming, Python, Java, C++, HTML, JavaScript, Hacking, Teknik Hacking, Jaringan, TKJ, Video Game, Nintendo, Dunia, Sejarah, Informasi]
 
 FORMAT OUTPUT JSON:
 {"title": "[Judul dgn keyword, max 60 char sebelum pipe]", "content": "[HTML: <p>meta description</p><p>...</p><h2>...</h2><p>...</p><table>...</table><h2>...</h2><p>...</p>]", "labels": ["[Satu label]"]}
@@ -178,10 +178,14 @@ FORMAT OUTPUT JSON:
 Topik: """
 
 
-def validate_config() -> List[str]:
+def validate_config(require_blogger_auth: bool = True) -> List[str]:
     """
     Validate that required configuration is present.
-    
+
+    Args:
+        require_blogger_auth: When False, Blogger credentials are not
+            required (useful for --dry-run on a machine without OAuth).
+
     Returns:
         List of missing configuration keys (empty if all valid).
     """
@@ -199,20 +203,21 @@ def validate_config() -> List[str]:
         errors.append("BLOGGER_BLOG_ID must be set in .env")
 
     # Check Blogger auth: need at least one auth method available
-    has_token = TOKEN_PATH.exists()
-    has_client_secret = CLIENT_SECRET_PATH.exists()
-    has_service_account = SERVICE_ACCOUNT_PATH.exists() and (
-        SERVICE_ACCOUNT_PATH.stat().st_size > 100
-    )
-
-    if not has_token and not has_client_secret and not has_service_account:
-        errors.append(
-            f"No Google authentication method found.\n"
-            f"Options:\n"
-            f"  1. Add token.json (from OAuth authorization)\n"
-            f"  2. Add client_secret.json (OAuth Desktop App credentials)\n"
-            f"  3. Add a service account JSON key file in project root\n"
-            f"  4. Set GOOGLE_APPLICATION_CREDENTIALS env var"
+    if require_blogger_auth:
+        has_token = TOKEN_PATH.exists()
+        has_client_secret = CLIENT_SECRET_PATH.exists()
+        has_service_account = SERVICE_ACCOUNT_PATH.exists() and (
+            SERVICE_ACCOUNT_PATH.stat().st_size > 100
         )
+
+        if not has_token and not has_client_secret and not has_service_account:
+            errors.append(
+                f"No Google authentication method found.\n"
+                f"Options:\n"
+                f"  1. Add token.json (from OAuth authorization)\n"
+                f"  2. Add client_secret.json (OAuth Desktop App credentials)\n"
+                f"  3. Add a service account JSON key file in project root\n"
+                f"  4. Set GOOGLE_APPLICATION_CREDENTIALS env var"
+            )
 
     return errors

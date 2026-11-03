@@ -180,14 +180,25 @@ def generate_with_custom_api(
             f"{CUSTOM_API_BASE_URL})..."
         )
 
+        # Streaming dipakai karena gateway custom API memutus request
+        # non-streaming yang tidak mengirim data selama ~90 detik.
         response = client.chat.completions.create(
             model=CUSTOM_MODEL,
             messages=_build_messages(full_prompt),
             temperature=0.8,
             max_tokens=8192,
+            stream=True,
         )
 
-        raw_text = _extract_openai_text(response)
+        parts = []
+        for chunk in response:
+            if (
+                chunk.choices
+                and chunk.choices[0].delta
+                and chunk.choices[0].delta.content
+            ):
+                parts.append(chunk.choices[0].delta.content)
+        raw_text = "".join(parts).strip() or None
         article = _finalize_article(raw_text, "Custom API")
         if article:
             logger.info(f"Successfully generated article: '{article.title}'")
@@ -294,9 +305,22 @@ def _inject_article_image(article: GeneratedArticle) -> GeneratedArticle:
 
 
 def generate_article(
-    topic: str, backlinks_context: str = ""
+    topic: str,
+    backlinks_context: str = "",
+    existing_labels: Optional[List[str]] = None,
 ) -> Tuple[Optional[GeneratedArticle], str]:
     master_prompt = load_master_prompt()
+
+    if existing_labels:
+        master_prompt = master_prompt.replace(
+            "[DAFTAR LABEL BLOG]", ", ".join(existing_labels)
+        )
+    else:
+        master_prompt = master_prompt.replace(
+            "[DAFTAR LABEL BLOG]",
+            "Teknologi, Komputer, Jaringan, Programming, Hacking, "
+            "Sistem Operasi, Keamanan Siber",
+        )
 
     if CUSTOM_API_BASE_URL:
         article = generate_with_custom_api(topic, master_prompt, backlinks_context)

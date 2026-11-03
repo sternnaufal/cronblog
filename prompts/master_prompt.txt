@@ -79,7 +79,13 @@ GAYA PENULISAN & SEO (WAJIB DIIKUTI):
 
 12. PENUTUP: Akhiri dengan ajakan interaktif, misal: "Punya pengalaman [topik]? Tulis di komentar ya! 😊"
 
-13. LABELS: Pilih SATU label yang paling cocok dari daftar ini: [Teknologi, Komputer, Sistem Operasi, Windows, Linux, Programming, Python, Java, C++, HTML, JavaScript, Hacking, Teknik Hacking, Jaringan, TKJ, Video Game, Nintendo, Dunia, Sejarah, Informasi, Biologi, Ekonomi, Gaya Hidup, Kesehatan, Musik]
+13. LABELS: Pilih 3-5 label yang relevan dengan isi artikel. Jangan cuma satu.
+    - Label PERTAMA wajib label spesifik untuk topik utama. Kalau topiknya belum pernah dibahas dan belum ada labelnya, buat label baru (contoh: "Kubernetes", "VPN", "Zero-Day", "DevOps").
+    - Label berikutnya adalah kategori yang lebih luas. Prioritaskan label yang SUDAH ADA di blog ini: [DAFTAR LABEL BLOG]
+    - Boleh membuat label baru kalau memang belum ada yang cocok. Pakai Title Case, 1-2 kata, dan konsisten dengan gaya label yang ada.
+    - Jangan menduplikasi label lama dengan ejaan berbeda (contoh: jangan buat "Network" kalau sudah ada "Jaringan").
+    - Contoh: topik Kubernetes -> ["Kubernetes", "Docker", "DevOps", "Teknologi"]; topik VPN -> ["VPN", "Jaringan", "Keamanan Siber"].
+    - Field `labels` di JSON harus berupa array berisi 3-5 string.
 
 === DAFTAR ARTIKEL BLOG (buat referensi backlink):
 [akan diisi otomatis dengan artikel terkait dari blog]
@@ -92,7 +98,9 @@ GAYA PENULISAN & SEO (WAJIB DIIKUTI):
 {
   "title": "[Judul yang mengandung kata kunci, max 60 karakter sebelum pipe (|) untuk SEO]",
   "content": "[Konten artikel FULL HTML. Struktur: <p>meta description</p><p>pembukaan</p><h2>sub-bagian 1</h2><p>...</p><h2>sub-bagian 2</h2><p>...</p><table>...</table><h2>sub-bagian 3</h2><ul>...</ul><p>penutup</p><h2>Referensi</h2><ul><li><a href=...>...</a></li></ul>. JANGAN pake <html>, <body>, atau <head>]",
-  "labels": ["[Satu label paling relevan dari daftar di atas]"]
+  "labels": ["[3-5 label relevan, label pertama spesifik ke topik utama, boleh label baru]"]
 }
+
+PILIHAN TOPIK (WAJIB): Dari daftar topik di bawah, pilih SATU yang paling relevan dengan fokus blog: teknologi, internet, komputer, programming, sistem operasi, keamanan siber/hacking, jaringan, video game, atau sejarah teknologi. Abaikan topik politik, ekonomi makro, kesehatan, gaya hidup, bencana, dan berita umum yang tidak berhubungan dengan teknologi. Kalau semua topik kurang pas, ambil sudut pandang teknologi dari topik yang paling dekat.
 
 Topik yang harus kamu tulis hari ini adalah:

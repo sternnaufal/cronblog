@@ -1,27 +1,31 @@
 # cronblog - Automated Blogger Publisher
 
-Bot penulis artikel otomatis yang mengambil tren dari RSS feed, menghasilkan konten berkualitas via AI (local/cloud), dan menyimpannya sebagai **Draft** di Blogger untuk kurasi manual.
+Bot penulis artikel otomatis yang mengambil topik dari **queue manual** (atau tren RSS sebagai fallback), menghasilkan konten via AI, lalu menyimpannya sebagai **Draft** atau langsung **Live** di Blogger.
 
 ## Arsitektur
 
 ```
-[GitHub Actions / Cron Job] (2x seminggu)
+[Cron server / GitHub Actions]
          │
          ▼
 [Python Script]
          │
-         ├──► 1. Ambil Tren (RSS Feed / Google News)
-         ├──► 2. Kirim ke AI API (Custom Local API > Gemini > OpenAI)
-         └──► 3. Kirim ke Blogger API v3 (Status: DRAFT)
+         ├──► 1. Ambil Topik (queue manual → fallback RSS)
+         ├──► 2. Kirim ke AI API (Custom API > Gemini > OpenAI)
+         ├──► 3. Pilih 3-5 label (pakai taksonomi blog)
+         └──► 4. Kirim ke Blogger API v3 (DRAFT / LIVE)
 ```
 
 ## Fitur
 
-- **Trend Fetching**: Mengambil topik tren dari RSS feed (Google News, dll.)
-- **AI Content Generation**: Custom local API (primary) + Gemini/OpenAI (fallback)
-- **Draft System**: Semua artikel disimpan sebagai **DRAFT** di Blogger untuk kurasi manual
-- **Anti-AI Filter**: Master prompt dirancang untuk menghasilkan teks alami tanpa jejak AI
-- **Scheduled**: Berjalan otomatis 2x seminggu via GitHub Actions
+- **Queue Topik Manual**: tentukan topik di `blog_title_queue.txt`
+- **Trend Fetching**: fallback otomatis ke RSS teknologi/internet
+- **AI Content Generation**: Custom API (primary) + Gemini/OpenAI (fallback)
+- **Streaming**: aman untuk artikel panjang di gateway dengan timeout
+- **Label Dinamis**: 3-5 label per artikel, label baru dibuat bila perlu
+- **Draft / Live Mode**: pilih kurasi manual atau langsung tayang
+- **Anti-AI Filter**: Master prompt dirancang untuk teks natural tanpa frasa klise
+- **Scheduled**: cron harian (default 12.00 WIB)
 - **Triple Provider**: Custom API > Gemini API > OpenAI API (failover cascade)
 
 ## Struktur Folder
@@ -37,8 +41,17 @@ cronblog/
 │   ├── main.py                  # Entry point CLI
 │   ├── config.py                # Konfigurasi & env vars
 │   ├── trend_fetcher.py         # RSS feed scraper
+│   ├── topic_queue.py           # Queue topik manual
+│   ├── labels.py                # Taksonomi label blog
 │   ├── content_generator.py     # Custom API / Gemini / OpenAI
 │   └── blogger_publisher.py     # Blogger API v3 client
+├── auth.py                      # OAuth di laptop (ada browser)
+├── auth_server.py               # OAuth headless via SSH tunnel
+├── run.sh                       # Wrapper cron + flock
+├── blog_title_queue.txt         # Daftar topik manual
+├── VERSION
+├── CHANGELOG.md
+├── DEVLOG.md
 ├── .env.example                 # Template environment variables
 ├── requirements.txt             # Python dependencies
 └── README.md
@@ -86,7 +99,13 @@ copy .env.example .env
 4. Buat **OAuth 2.0 Client ID** (Desktop application)
 5. Download JSON → rename ke `client_secret.json`
 6. Letakkan di root folder `cronblog/`
-7. Jalankan sekali: `python -m src.main` untuk proses OAuth (buka browser)
+7. Generate token OAuth:
+   - Di komputer dengan browser: `python auth.py`
+   - Di server headless: `python auth_server.py`, lalu dari laptop buat
+     SSH tunnel `ssh -L 8080:localhost:8080 user@server` dan buka URL yang
+     tercetak.
+8. Set OAuth consent screen ke **In production** agar refresh token tidak
+   kedaluwarsa dalam 7 hari (status Testing).
 
 ### 5. GitHub Secrets Setup
 
@@ -129,13 +148,47 @@ python -m src.main --topic "Perkembangan AI di Indonesia 2026"
 
 # Verbose logging
 python -m src.main --verbose
+
+# Cek versi
+python -m src.main --version
 ```
 
-### GitHub Actions
+### Queue Topik Manual
 
-Workflow otomatis berjalan setiap **Senin & Kamis jam 08:00 UTC**.
+Isi `blog_title_queue.txt`, satu topik per baris:
 
-Bisa juga di-trigger manual dari tab **Actions** > **cronblog** > **Run workflow**.
+```text
+Cara kerja DNS buat pemula
+Apa itu zero-day exploit?
+Sejarah Linux di server
+```
+
+- Bot mengambil topik dari atas.
+- Baris kosong dan baris berawalan `#` diabaikan.
+- Topik dihapus hanya setelah publish berhasil.
+- Riwayat topik ada di `blog_title_queue.done.txt`.
+- Kalau queue kosong, bot fallback ke RSS.
+
+### Label Dinamis
+
+Bot mengambil daftar label yang sudah ada dari feed blog, lalu meminta AI
+memilih 3-5 label. Label pertama wajib spesifik ke topik utama; label baru
+dibuat otomatis kalau topiknya belum pernah dibahas.
+
+### Scheduling
+
+#### Cron di server
+
+```cron
+0 12 * * * /path/ke/cronblog/run.sh >> /path/ke/cronblog/logs/cron.log 2>&1
+```
+
+`run.sh` memakai `flock` supaya dua run tidak berjalan bersamaan.
+
+#### GitHub Actions
+
+Workflow `publish.yml` masih tersedia dan bisa dijalankan manual dari tab
+**Actions**. Jadwal default di workflow adalah Senin & Kamis 08:00 UTC.
 
 ## Master Prompt
 
@@ -158,10 +211,17 @@ File `prompts/master_prompt.txt` berisi system instruction untuk AI. Prompt ini 
 
 ## Notes
 
-- Semua artikel dibuat sebagai **DRAFT** - tidak otomatis terpublish
-- Review dan publish manual di [Blogger Dashboard](https://www.blogger.com/)
-- Pastikan token OAuth direfresh secara berkala
-- Local API (9router/Ollama) harus berjalan saat eksekusi lokal
+- Mode default `PUBLISH_MODE=draft`. Set `live` kalau ingin langsung tayang.
+- Draft bisa direview di [Blogger Dashboard](https://www.blogger.com/).
+- `token.json` disimpan di server dengan permission `600`; jangan di-commit.
+- Pantau hasil run di `logs/cron.log`.
+- Local API (9router/Ollama) harus berjalan kalau memakai provider lokal.
+- Blogger API v3 belum mendukung pengisian "Search Description" per artikel.
+  Meta description otomatis bisa dilakukan lewat edit tema (`data:post.snippet`).
+
+## Versi
+
+Versi saat ini: **1.1.0**. Lihat `VERSION`, `CHANGELOG.md`, dan `DEVLOG.md`.
 
 
 ---

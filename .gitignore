@@ -32,6 +32,10 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Runtime state
+blog_title_queue.done.txt
 
 # Pip cache
 .pip/

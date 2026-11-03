@@ -1,0 +1,15 @@
+# ============================================================
+# QUEUE TOPIK MANUAL - cronblog
+# ============================================================
+# Satu topik per baris. Bot mengambil dari atas ke bawah.
+# Baris kosong dan baris yang diawali # akan diabaikan.
+#
+# Topik yang sudah berhasil dipublish akan otomatis dihapus
+# dari file ini dan dicatat di blog_title_queue.done.txt.
+#
+# Kalau file ini kosong, bot kembali mengambil tren dari RSS.
+#
+# Contoh:
+# Cara kerja DNS, dijelaskan santai buat pemula
+# Sejarah Linux: dari hobi sampai jadi tulang punggung internet
+# Apa itu zero-day exploit dan kenapa berbahaya?
